@@ -95,7 +95,6 @@ class Net(nn.Module):
         out = self.relu(out)
         out = self.droput(out)
         out = self.softmax(self.fc5(out))
-        # out = self.fc5(out)
       #   out = self.softmax(self.fc5(out))
         return out
 
