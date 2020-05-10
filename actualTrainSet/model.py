@@ -32,12 +32,18 @@ def prepareData(index):
     trainLabels = pickle.load(open(str(index) + 'trainOutput', 'rb'))
     trainset = Dataset(trainInputs, trainLabels)
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=16,shuffle=True, num_workers=24)
-    testInputs = pickle.load(open(str(index) + 'testInput', 'rb'))
-    testLabels = pickle.load(open(str(index) + 'testOutput', 'rb'))
+    testInputs = pickle.load(open(str(index) + 'valInput', 'rb'))
+    testLabels = pickle.load(open(str(index) + 'valOutput', 'rb'))
     testset = Dataset(testInputs, testLabels)
     testloader = torch.utils.data.DataLoader(testset, batch_size=16,shuffle=True, num_workers=24)
     return trainloader, testloader
 
+def prepareDataTest(index):
+    testInputs = pickle.load(open('../actualTestSet/' + str(index) + 'testInput', 'rb'))
+    testLabels = pickle.load(open('../actualTestSet/' + str(index) + 'testOutput', 'rb'))
+    testset = Dataset(testInputs, testLabels)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=16,shuffle=True, num_workers=24) 
+    return testloader
 class Net(nn.Module):
     def __init__(self):
         super(Net,self).__init__()
@@ -59,7 +65,8 @@ class Net(nn.Module):
         self.droput = nn.Dropout(p=0.5)
         self.fc4 = nn.Linear(in_features=500, out_features=50)
         self.droput = nn.Dropout(p=0.5)
-        self.fc5 = nn.Linear(in_features=50, out_features=2)    
+        self.fc5 = nn.Linear(in_features=50, out_features=2)
+        self.softmax = nn.LogSoftmax()
        
         
     def forward(self,x):
@@ -73,7 +80,7 @@ class Net(nn.Module):
         out = self.relu(out)
         out = self.maxpool2(out)
         #Flattening is done here with .view() -> (batch_size, 32*16*16) = (100, 8192)
-        out = out.view(16,192)   #-1 will automatically update the batchsize as 100; 8192 flattens 32,16,16
+        out = out.view(-1,192)   #-1 will automatically update the batchsize as 100; 8192 flattens 32,16,16
         #Then we forward through our fully connected layer 
         out = self.fc1(out)
         out = self.relu(out)
@@ -87,7 +94,8 @@ class Net(nn.Module):
         out = self.fc4(out)
         out = self.relu(out)
         out = self.droput(out)
-        out = self.fc5(out)
+        out = self.softmax(self.fc5(out))
+        # out = self.fc5(out)
       #   out = self.softmax(self.fc5(out))
         return out
 
@@ -109,6 +117,8 @@ def train(index):
                  # print(data.shape)
             optimizer.zero_grad()
             output = model(data)
+            print(output)
+            input()
                  # print(output.shape)
                  # output = output.reshape(16)
                  # print(output)
@@ -126,8 +136,8 @@ def train(index):
             loss = criterion(output, target)
             valid_loss += loss.item()*data.size(0)
            
-        train_loss = train_loss/len(train_loader.dataset)
-        valid_loss = valid_loss/len(valid_loader.dataset)
+        train_loss = train_loss/len(trainLoader.dataset)
+        valid_loss = valid_loss/len(testLoader.dataset)
 
         print('Epoch: {} \tTraining Loss: {:.6f} \tValidation Loss: {:.6f}'.format(
                  epoch, train_loss, valid_loss))
@@ -138,4 +148,59 @@ def train(index):
             torch.save(model.state_dict(), 'trainedModel.pt')
             valid_loss_min = valid_loss
 
+
+def test(index):
+    model = Net()
+    model.load_state_dict(torch.load('trainedModel.pt'))
+    model.eval()
+    criterion = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.SGD(model.parameters(), lr = 0.003, momentum= 0.9)
+    testloader = prepareDataTest(index)
+    test_loss = 0.0
+    class_correct = list(0. for i in range(2))
+    class_total = list(0. for i in range(2))
+
+    model.eval()
+    i=1
+    # iterate over test data
+    for data, target in testloader:
+        output = model(data).data.tolist()
+        target = target.data.tolist()
+        right = 0
+        i = 0
+        print(target[0])
+        for pair in output:
+            if pair[0]>pair[1]:
+                if target[i] == 0:
+                    right += 1
+            if pair[0]<pair[1]:
+                if target[i] == 1:
+                    right += 1
+        print(right/16)
+
+        input()
+    
+    for i in range(16):       
+        label = target.data[i]
+        class_correct[label] += correct[i].item()
+        class_total[label] += 1
+
+    test_loss = test_loss/len(testloader.dataset)
+    print('Test Loss: {:.6f}\n'.format(test_loss))
+
+    for i in range(2):
+        if class_total[i] > 0:
+            print('Test Accuracy of %5s: %2d%% (%2d/%2d)' % (
+                classes[i], 100 * class_correct[i] / class_total[i],
+                np.sum(class_correct[i]), np.sum(class_total[i])))
+        else:
+            print('Test Accuracy of %5s: N/A (no training examples)' % (classes[i]))
+
+    print('\nTest Accuracy (Overall): %2d%% (%2d/%2d)' % (
+        100. * np.sum(class_correct) / np.sum(class_total),
+        np.sum(class_correct), np.sum(class_total)))
+
+
+
 train(2)
+# test(2)
