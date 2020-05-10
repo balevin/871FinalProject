@@ -53,15 +53,23 @@ class Net(nn.Module):
         self.relu = nn.ReLU()                 
         self.maxpool1 = nn.MaxPool2d(kernel_size=2)  
         
-        self.cnn2 = nn.Conv2d(in_channels=8, out_channels=32, kernel_size=5, stride=1, padding=2)
-        self.batchnorm2 = nn.BatchNorm2d(32)
+        self.cnn2 = nn.Conv2d(in_channels=8, out_channels=16, kernel_size=5, stride=1, padding=2)
+        self.batchnorm2 = nn.BatchNorm2d(16)
         self.maxpool2 = nn.MaxPool2d(kernel_size=2)    
                 
-        # self.cnn3 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=5, stride=1, padding=2)
-        # self.batchnorm3 = nn.BatchNorm2d(64)
-        # self.maxpool3 = nn.MaxPool2d(kernel_size=2)   
+        self.cnn3 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=5, stride=1, padding=2)
+        self.batchnorm3 = nn.BatchNorm2d(32)
+        self.maxpool3 = nn.MaxPool2d(kernel_size=2)   
         
-        self.fc1 = nn.Linear(in_features=192, out_features=4000)
+        self.cnn4 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=5, stride=1, padding=2)
+        self.batchnorm4 = nn.BatchNorm2d(64)
+        self.maxpool4 = nn.MaxPool2d(kernel_size=2)    
+                
+        self.cnn5 = nn.Conv2d(in_channels=64, out_channels=32, kernel_size=5, stride=1, padding=2)
+        self.batchnorm5 = nn.BatchNorm2d(32)
+        self.maxpool5 = nn.MaxPool2d(kernel_size=2)
+
+        self.fc1 = nn.Linear(in_features=32, out_features=4000)
         self.droput = nn.Dropout(p=0.5)                    
         self.fc2 = nn.Linear(in_features=4000, out_features=2000)
         self.droput = nn.Dropout(p=0.5)
@@ -83,12 +91,13 @@ class Net(nn.Module):
         out = self.batchnorm2(out)
         out = self.relu(out)
         out = self.maxpool2(out)
-        # out = self.cnn3(out)
-        # out = self.batchnorm3(out)
-        # out = self.relu(out)
-        # out = self.maxpool3(out)
+
+        out = self.cnn3(out)
+        out = self.batchnorm3(out)
+        out = self.relu(out)
+        out = self.maxpool3(out)
         #Flattening is done here with .view() -> (batch_size, 32*16*16) = (100, 8192)
-        out = out.view(-1,192)   #-1 will automatically update the batchsize as 100; 8192 flattens 32,16,16
+        out = out.view(-1,32)   #-1 will automatically update the batchsize as 100; 8192 flattens 32,16,16
         #Then we forward through our fully connected layer 
         out = self.fc1(out)
         out = self.relu(out)
@@ -156,7 +165,7 @@ def train(index):
 
 def test(index):
     model = Net()
-    model.load_state_dict(torch.load('trainedModel.pt'))
+    model.load_state_dict(torch.load('trainedModel2.pt'))
     model.eval()
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr = 0.003, momentum= 0.9)
@@ -209,5 +218,5 @@ def test(index):
     print(right/(wrong+right))
     print(roc_auc_score(allTrue, forRoc))
 
-train(2)
-# test(2)
+# train(2)
+test(2)
