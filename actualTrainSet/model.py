@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
-
+from sklearn.metrics.ranking import roc_auc_score
 
 class Dataset(data.Dataset):
     def __init__(self, inputs, labels):
@@ -56,6 +56,10 @@ class Net(nn.Module):
         self.cnn2 = nn.Conv2d(in_channels=8, out_channels=32, kernel_size=5, stride=1, padding=2)
         self.batchnorm2 = nn.BatchNorm2d(32)
         self.maxpool2 = nn.MaxPool2d(kernel_size=2)    
+                
+        # self.cnn3 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=5, stride=1, padding=2)
+        # self.batchnorm3 = nn.BatchNorm2d(64)
+        # self.maxpool3 = nn.MaxPool2d(kernel_size=2)   
         
         self.fc1 = nn.Linear(in_features=192, out_features=4000)
         self.droput = nn.Dropout(p=0.5)                    
@@ -66,7 +70,7 @@ class Net(nn.Module):
         self.fc4 = nn.Linear(in_features=500, out_features=50)
         self.droput = nn.Dropout(p=0.5)
         self.fc5 = nn.Linear(in_features=50, out_features=2)
-        self.softmax = nn.LogSoftmax()
+        self.softmax = nn.Softmax()
        
         
     def forward(self,x):
@@ -79,6 +83,10 @@ class Net(nn.Module):
         out = self.batchnorm2(out)
         out = self.relu(out)
         out = self.maxpool2(out)
+        # out = self.cnn3(out)
+        # out = self.batchnorm3(out)
+        # out = self.relu(out)
+        # out = self.maxpool3(out)
         #Flattening is done here with .view() -> (batch_size, 32*16*16) = (100, 8192)
         out = out.view(-1,192)   #-1 will automatically update the batchsize as 100; 8192 flattens 32,16,16
         #Then we forward through our fully connected layer 
@@ -116,8 +124,6 @@ def train(index):
                  # print(data.shape)
             optimizer.zero_grad()
             output = model(data)
-            print(output)
-            input()
                  # print(output.shape)
                  # output = output.reshape(16)
                  # print(output)
@@ -144,7 +150,7 @@ def train(index):
             print('Validation loss decreased ({:.6f} --> {:.6f}).  Saving model ...'.format(
             valid_loss_min,
                  valid_loss))
-            torch.save(model.state_dict(), 'trainedModel.pt')
+            torch.save(model.state_dict(), 'trainedModel2.pt')
             valid_loss_min = valid_loss
 
 
@@ -161,45 +167,47 @@ def test(index):
 
     model.eval()
     i=1
+    allPred = []
+    allTrue = []
+    forRoc = []
     # iterate over test data
     for data, target in testloader:
-        output = model(data).data.tolist()
-        target = target.data.tolist()
-        right = 0
-        i = 0
-        print(target[0])
-        for pair in output:
-            if pair[0]>pair[1]:
-                if target[i] == 0:
-                    right += 1
-            if pair[0]<pair[1]:
-                if target[i] == 1:
-                    right += 1
-        print(right/16)
+        output = model(data)
+        # target = target.data.tolist()
+        # right = 0
+        # i = 0
+        # print(target[0])
+        # for pair in output:
+        #     if pair[0]>pair[1]:
+        #         if target[i] == 0:
+        #             right += 1
+        #     if pair[0]<pair[1]:
+        #         if target[i] == 1:
+        #             right += 1
+        # print(right/16)
+        
+        _, pred = torch.max(output, 1)
+        trial = output.data.tolist()
+        for i in range(len(pred.data.tolist())):
+            if pred.data.tolist()[i] == 1:
+                forRoc.append(trial[i][1])
+            if pred.data.tolist()[i] == 0:
+                forRoc.append(1-trial[i][0])
+ 
+            
+        allPred.extend(pred.data.tolist())
+        allTrue.extend(target.data.tolist())
+        # input()
 
-        input()
-    
-    for i in range(16):       
-        label = target.data[i]
-        class_correct[label] += correct[i].item()
-        class_total[label] += 1
-
-    test_loss = test_loss/len(testloader.dataset)
-    print('Test Loss: {:.6f}\n'.format(test_loss))
-
-    for i in range(2):
-        if class_total[i] > 0:
-            print('Test Accuracy of %5s: %2d%% (%2d/%2d)' % (
-                classes[i], 100 * class_correct[i] / class_total[i],
-                np.sum(class_correct[i]), np.sum(class_total[i])))
+    right = 0
+    wrong = 0
+    for i in range(len(allPred)):
+        if allPred[i] == allTrue[i]:
+            right+=1
         else:
-            print('Test Accuracy of %5s: N/A (no training examples)' % (classes[i]))
-
-    print('\nTest Accuracy (Overall): %2d%% (%2d/%2d)' % (
-        100. * np.sum(class_correct) / np.sum(class_total),
-        np.sum(class_correct), np.sum(class_total)))
-
-
+            wrong+=1
+    print(right/(wrong+right))
+    print(roc_auc_score(allTrue, forRoc))
 
 train(2)
 # test(2)
