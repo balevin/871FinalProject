@@ -78,3 +78,8 @@ def baselineScore():
 
 
 baselineScore()
+
+# for computing our model, and not running heatmap:
+#   download test cams (img:heatmap)
+# use testImages to go through each image, get heatmap from dict
+# yoss heatmap into our model, get prediction
