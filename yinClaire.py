@@ -16,25 +16,27 @@ import cv2
 from torchvision import transforms
 import pickle as pkl 
 import time
+import torchvision.models as models
+
 
 #from chexnet.DensenetModels import DenseNet121 as DenseNet
 
 #*****WROTE THESE INITIALIZATIONS TO TAKE IN LABEL 2 ONLY*******
 
 #paths for train set
-train_x_path_2 = './chexnet/actualTrainSet/2Cams.pickle'
-train_y0_path = './chexnet/actualTrainSet/trainImageToLabels.pickle'
-train_y1_path = './chexnet/actualTrainSet/trainImageToTruth.pickle'
+train_x_path_2 = './actualTrainSet/2Cams.pickle'
+train_y0_path = './actualTrainSet/trainImageToLabels.pickle'
+train_y1_path = './actualTrainSet/trainImageToTruth.pickle'
 
 #paths for test set
-test_x_path_2 = './chexnet/actualTestSet/2Cams.pickle'
-test_y0_path = './chexnet/actualTestSet/imageToLabels.pickle'
-test_y1_path = './chexnet/actualTestSet/imageToTruth.pickle'
+test_x_path_2 = './actualTestSet/2Cams.pickle'
+test_y0_path = './actualTestSet/imageToLabels.pickle'
+test_y1_path = './actualTestSet/imageToTruth.pickle'
 
 #paths for val set
-val_x_path_2 = './chexnet/actualValSet/2Cams.pickle'
-val_y0_path = './chexnet/valImageToLabels.pickle'
-val_y1_path = './chexnet/valImageToTruth.pickle'
+val_x_path_2 = './actualValSet/2Cams.pickle'
+val_y0_path = './valImageToLabels.pickle'
+val_y1_path = './valImageToTruth.pickle'
 
 batch_size=64
 max_epochs=1000 #max
@@ -47,7 +49,7 @@ input_size = [7,8] # heatmap array dimensions
 timestampTime = time.strftime("%H%M%S")
 timestampDate = time.strftime("%d%m%Y")
 timestampSTART = timestampDate + '-' + timestampTime
-model_path = '/ErrorNet/ErrorNetTrained'+timestampSTART
+model_path = '/ErrorNetTrained'+timestampSTART
 
 loss = torch.nn.BCELoss(reduction = 'mean')
 
@@ -60,9 +62,10 @@ class ErrorNet():
         n_classes: number of classes in classificatoin
         """
         if architecture=='DenseNet':
-            model = DenseNet(n_classes, pretrained)
+            model = models.densenet161()
         self.classes=n_classes
-        self.model = torch.nn.DataParallel(model).cuda()
+        #self.model = torch.nn.DataParallel(model).cuda()
+        self.model = model
         self.model_path = model_path
 
     def dataset_generator(self, x_path, y0_path, y1_path):
@@ -121,8 +124,13 @@ class ErrorNet():
         """
         optimizer = optim.Adam (self.model.parameters(), lr=0.0001, betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-5)
         scheduler = ReduceLROnPlateau(optimizer, factor = 0.1, patience = 5, mode = 'min')
+
         # Generate and preprocess train set
-        train_x, train_y = self.dataset_generator(train_x_path, train_y0_path, train_y1_path)
+        #train_x, train_y = self.dataset_generator(train_x_path, train_y0_path, train_y1_path)
+        with open('./actualTrainSet/2trainInput', 'rb') as h:
+            train_x = self.preprocess(pkl.load(h))
+        with open('./actualTrainSet/2trainOutput', 'rb') as h:
+            train_y = pkl.load(h)
         datasetTrain = Dataset(train_x, train_y)
         # Create dataloader for train set
         train_loader = data.DataLoader(datasetTrain,
@@ -130,9 +138,15 @@ class ErrorNet():
                          num_workers=24,
                          shuffle=True,
                          pin_memory=True)
-        print('made train dataset') 
+        print('made train dataset')
+
         # Generate and preprocess val set
-        val_x, val_y = self.dataset_generator(val_x_path, val_y0_path, val_y1_path)
+        #val_x, val_y = self.dataset_generator(val_x_path, val_y0_path, val_y1_path)
+        with open('./actualTestSet/2testInput', 'rb') as h:
+            val_x = self.preprocess(pkl.load(h))
+        with open('./actualTestSet/2testOutput', 'rb') as h:
+            val_y = np.array(pkl.load(h))
+
         datasetVal = Dataset(val_x, val_y)
         # Create dataloader for val set
         val_loader = data.DataLoader(datasetVal,
@@ -143,8 +157,8 @@ class ErrorNet():
         print('made val dataset') 
         lossMIN = 100000
         for epochID in range (0, max_epochs):
-            self.epoch_train (train_loader, optimizer, loss)
-            lossVal, losstensor = self.epoch_val(valloader, optimizer, loss)
+            self.epoch_train(train_loader, optimizer, loss)
+            lossVal, losstensor = self.epoch_val(val_loader, optimizer, loss)
             
             timestampTime = time.strftime("%H%M%S")
             timestampDate = time.strftime("%d%m%Y")
@@ -154,7 +168,7 @@ class ErrorNet():
 
             if lossVal < lossMIN:
                 lossMIN = lossVal    
-                torch.save({'epoch': epochID + 1, 'state_dict': model.state_dict(), 'best_loss': lossMIN, 'optimizer' : optimizer.state_dict()}, 'm-' + launchTimestamp + '.pth.tar')
+                torch.save({'epoch': epochID + 1, 'state_dict': self.model.state_dict(), 'best_loss': lossMIN, 'optimizer' : optimizer.state_dict()}, 'm-' + launchTimestamp + '.pth.tar')
                 print ('Epoch [' + str(epochID + 1) + '] [save] [' + timestampEND + '] loss= ' + str(lossVal))
             else:
                 print ('Epoch [' + str(epochID + 1) + '] [----] [' + timestampEND + '] loss= ' + str(lossVal))
@@ -165,8 +179,8 @@ class ErrorNet():
         """
         self.model.train()
         for batchID, (input, target) in enumerate (dataLoader):   
-            target = target.cuda()
-                 
+            #target = target.cuda()
+            print(type(input))
             varInput = torch.autograd.Variable(input)
             varTarget = torch.autograd.Variable(target)         
             varOutput = self.model(varInput)
@@ -187,7 +201,7 @@ class ErrorNet():
         losstensorMean = 0
         with torch.no_grad(): 
             for i, (input, target) in enumerate (dataLoader):
-                target = target.cuda()
+                #target = target.cuda()
         
                 varInput = torch.autograd.Variable(input)
                 varTarget = torch.autograd.Variable(target)    
@@ -209,7 +223,7 @@ class ErrorNet():
         test_y0_path: path for initial predicted labels for test set
         test_y1_path: path for true labels for test set
         """
-        print(torch.cuda.get_device_name(0))
+        #print(torch.cuda.get_device_name(0))
         cudnn.benchmark = True
         test_x, test_y = self.dataset_generator(test_x_path, test_y0_path, test_y1_path)
         datasetTest = Dataset(test_x, test_y)
@@ -219,10 +233,12 @@ class ErrorNet():
                          shuffle=False)
         print('made test dataset')
 
-        outGT = torch.FloatTensor().cuda()
-        outPRED = torch.FloatTensor().cuda()
+        # outGT = torch.FloatTensor().cuda()
+        # outPRED = torch.FloatTensor().cuda()
+        outGT = torch.FloatTensor()
+        outPRED = torch.FloatTensor()
         print('pred')
-        model.eval()
+        self.model.eval()
         print('eval') 
 
         labelList=[]
@@ -231,13 +247,14 @@ class ErrorNet():
             for i, (input, target) in enumerate(dataLoaderTest):
                 if i%5 == 0:
                     print(i)
-                target = target.cuda()
+                #target = target.cuda()
                 outGT = torch.cat((outGT, target), 0)
                 
                 bs, n_crops, c, h, w = input.size()
-                varInput = torch.autograd.Variable(input.view(-1, c, h, w).cuda())
+                #varInput = torch.autograd.Variable(input.view(-1, c, h, w).cuda())
+                varInput = torch.autograd.Variable(input.view(-1, c, h, w))
                 
-                out = model(varInput)
+                out = self.model(varInput)
                 outMean = out.view(bs, n_crops, -1).mean(1)
                 predicted = outMean.data.tolist()
                 truth = target.data.tolist()
@@ -266,32 +283,25 @@ class ErrorNet():
             return outAUROC
 
 class Dataset(data.Dataset):
-  def __init__(self, inputs, labels):
+    def __init__(self, inputs, labels):
         self.inputs = inputs
         self.labels = labels
 
-  def __len__(self):
+    def __len__(self):
         'Denotes the total number of samples'
         return len(self.labels)
 
-  def __getitem__(self, index):
+    def __getitem__(self, index):
         'Generates one sample of data'
         # Select sample
-        cam = self.inputs[index]
+      #   cam = torch.cuda.FloatTensor(self.inputs[index])
+        cam = torch.FloatTensor(self.inputs[index])
         shape_zero = len(cam)
         shape_one = len(cam[0])
 
-        return cam, self.labels[index]
+        return F.pad(cam, (12 - shape_one, 0, 10-shape_zero, 0)).unsqueeze(0), self.labels[index]
 
 def DenseNet(pretrained=False, progress=True, **kwargs):
-    r"""Densenet-121 model from
-    `"Densely Connected Convolutional Networks" <https://arxiv.org/pdf/1608.06993.pdf>`_
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
-        progress (bool): If True, displays a progress bar of the download to stderr
-        memory_efficient (bool) - If True, uses checkpointing. Much more memory efficient,
-          but slower. Default: *False*. See `"paper" <https://arxiv.org/pdf/1707.06990.pdf>`_
-    """
     return torchvision.models.densenet._densenet('densenet121', 32, (6, 12, 24, 16), 64, pretrained, progress,
                      **kwargs)
 
