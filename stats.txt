@@ -1,0 +1,10 @@
+49862 have just one
+16954 have two 
+395 have all three
+75455 have none
+11605 just have Edema
+32023 just have Pleural Effusion
+6234 just have Pneumothorax
+13795 have edema and Pleural Effusion
+2846 have Pneumothorax and Pleural Effusion
+313 have Pneumothorax and Edema
