@@ -1,0 +1,3 @@
+Best AUROC: 0.7529886989819744 happens when t=0.2
+Highest percentage: 0.9144072301967039 happens when t=0.45
+Best Score: 0.6813166672352573 happens when t=0.45

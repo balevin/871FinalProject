@@ -1,0 +1,5 @@
+AUROC: 0.7010489265751397
+Predicted #: 1516
+Deferred #: 227
+Predicted percentage #: 0.8697647733792312
+Score: 0.6097476607503797
